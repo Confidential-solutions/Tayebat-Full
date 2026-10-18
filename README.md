@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🥗 Expert Review Hub
+# 🥗 Tayebat (Eltayebat)
 
 **A full-stack nutrition & wellness platform — track meals, manage plans, discover recipes, and reach your health goals.**
 
@@ -13,6 +13,8 @@
 
 [📖 Docs](./docs/) · [🚀 Setup Guide](./docs/SETUP.md) · [🔌 API Reference](./docs/API.md) · [🤝 Contributing](./CONTRIBUTING.md)
 
+Live: [eltayebat.vercel.app](https://eltayebat.vercel.app)
+
 </div>
 
 ---
@@ -21,7 +23,7 @@
 
 | Area | What's Included |
 |---|---|
-| 🔐 **Auth** | JWT-based register / login / logout with secure HTTP cookies |
+| 🔐 **Auth** | JWT register / login / logout via **`Authorization: Bearer`** header (not HTTP cookies) |
 | 📊 **Dashboard** | Macro overview, calorie progress, and daily summary cards |
 | 🍽️ **Food Tracker** | Log meals per day, search foods, track macros (protein, carbs, fat) |
 | 📅 **Meal Plans** | Create, assign, and follow structured weekly meal plans |
@@ -31,55 +33,40 @@
 | 🌍 **i18n Ready** | Multi-language context built in |
 | 📱 **PWA** | Installable as a Progressive Web App |
 
+### Auth token storage (frontend)
+
+The API expects **Bearer JWT** only. Typical client options:
+
+- **Memory / React state** (recommended for XSS resistance; lost on refresh)
+- **`localStorage` / `sessionStorage`** (common SPA pattern; protect against XSS)
+- HttpOnly cookies are **not** implemented yet (`cookie-parser` is present but unused)
+
 ---
 
 ## 🏗️ Architecture
 
 ```
-Expert-Review-Hub/
+Tayebat-Full/
 ├── backend/                   # Node.js + Express REST API
 │   ├── api/                   # Vercel serverless entry (index.ts)
 │   ├── src/
 │   │   ├── app.ts             # Express app setup (CORS, logging, routes)
 │   │   ├── index.ts           # Server entry + graceful shutdown
-│   │   ├── config/            # Centralized env config & validation
-│   │   ├── controllers/       # Route handlers (auth, dashboard, foods, …)
-│   │   ├── db/
-│   │   │   ├── schema/        # Drizzle ORM schemas (users, foods, tracker, …)
-│   │   │   ├── seeds/         # Seed scripts for development data
-│   │   │   └── index.ts       # DB connection pool
-│   │   ├── errors/            # Typed error classes
-│   │   ├── lib/               # Logger (Pino) & shared utilities
+│   │   ├── config/            # Zod-validated env config
+│   │   ├── controllers/       # Thin handlers (expanding)
+│   │   ├── db/                # Drizzle schema + connection
 │   │   ├── middleware/        # Auth guard, error handler
-│   │   ├── models/            # Data-shape types / DTOs
-│   │   ├── routes/            # Route definitions (auth, foods, tracker, …)
-│   │   ├── services/          # Base service + repository pattern
-│   │   ├── types/             # Global TypeScript types
-│   │   ├── utils/             # Helpers (hashing, JWT, …)
-│   │   ├── validators/        # Zod request validators
-│   │   └── openapi.yaml       # OpenAPI 3.1 spec (auto-generated)
-│   ├── drizzle.config.ts      # Drizzle Kit configuration
-│   ├── tsconfig.json
+│   │   ├── routes/            # Route definitions
+│   │   ├── services/          # Domain services (base + repository; domain modules TBD)
+│   │   ├── utils/             # JWT, hashing helpers
+│   │   └── validators/        # Zod request validators
+│   ├── .env.example
 │   └── package.json
 │
 ├── frontend/                  # React 19 + Vite SPA
-│   ├── src/
-│   │   ├── App.tsx            # Root router (Wouter)
-│   │   ├── components/        # Shadcn/UI + custom components
-│   │   ├── constants/         # API endpoints, query keys
-│   │   ├── contexts/          # Theme, language, notifications
-│   │   ├── hooks/             # useAuth, useQuery wrappers
-│   │   ├── lib/               # Axios client, cn utility
-│   │   ├── pages/             # Home, Dashboard, Tracker, MealPlans, Recipes, …
-│   │   ├── types/             # Shared API response types
-│   │   └── utils/             # Date helpers, formatters
-│   ├── vite.config.ts
-│   ├── tsconfig.json
-│   └── package.json
-│
-├── docs/                      # Project documentation
-├── vercel.json                # Vercel monorepo deployment config
-├── .gitignore
+├── docs/
+├── .github/workflows/         # CI (typecheck + tests)
+├── vercel.json
 └── README.md
 ```
 
@@ -95,9 +82,8 @@ Expert-Review-Hub/
 | **Drizzle ORM** | Type-safe PostgreSQL queries & migrations |
 | **PostgreSQL** | Primary database |
 | **Pino** | Structured JSON logging |
-| **Zod** | Runtime schema & request validation |
-| **JWT + bcryptjs** | Authentication & password hashing |
-| **OpenAPI / Orval** | API spec & auto-generated client types |
+| **Zod** | Runtime schema & env validation |
+| **JWT + bcryptjs** | Bearer authentication & password hashing |
 
 ### Frontend
 | Technology | Purpose |
@@ -108,10 +94,7 @@ Expert-Review-Hub/
 | **Shadcn/UI + Radix UI** | Accessible component primitives |
 | **Wouter** | Lightweight client-side router |
 | **TanStack Query v5** | Server state management & caching |
-| **Framer Motion** | Animations & transitions |
-| **Recharts** | Dashboard charts |
-| **React Hook Form + Zod** | Forms & validation |
-| **Axios** | HTTP client |
+| **Axios** | HTTP client (Bearer token) |
 
 ---
 
@@ -122,8 +105,8 @@ Expert-Review-Hub/
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/Mostafa-SAID7/Expert-Review-Hub.git
-cd Expert-Review-Hub
+git clone https://github.com/Confidential-solutions/Tayebat-Full.git
+cd Tayebat-Full
 ```
 
 ### 2. Backend Setup
@@ -132,32 +115,25 @@ cd Expert-Review-Hub
 cd backend
 npm install
 
-# Copy env template
 cp .env.example .env
-# Edit .env and set your DATABASE_URL and JWT_SECRET
+# Edit .env — set DATABASE_URL and a strong JWT_SECRET (>= 32 chars)
 
-# Push schema to your database
 npx drizzle-kit push
-
-# Start dev server
 npm run dev
 ```
 
-✅ API running at **`http://localhost:3000`**
+✅ API at **`http://localhost:3000`**
 
 ### 3. Frontend Setup
 
 ```bash
 cd ../frontend
 npm install
-
-# Create frontend env
 echo "VITE_API_URL=http://localhost:3000" > .env
-
 npm run dev
 ```
 
-✅ App running at **`http://localhost:5173`**
+✅ App at **`http://localhost:5173`**
 
 ---
 
@@ -166,28 +142,20 @@ npm run dev
 ### Backend (`/backend`)
 
 ```bash
-npm run dev        # Start development server with hot-reload (tsx watch)
-npm run build      # Compile TypeScript → dist/
-npm run start      # Run production build
-npm run typecheck  # Run tsc type-check (no emit)
+npm run dev        # Dev server (tsx watch)
+npm run build      # Compile → dist/
+npm run start      # Production build
+npm run typecheck  # tsc --noEmit
+npm test           # Vitest unit tests
 ```
 
 ### Frontend (`/frontend`)
 
 ```bash
-npm run dev        # Vite development server
+npm run dev        # Vite dev server
 npm run build      # Production bundle
-npm run preview    # Preview production build locally
-npm run typecheck  # Run tsc type-check (no emit)
-```
-
-### Database (`/backend`)
-
-```bash
-npx drizzle-kit generate   # Generate SQL migration files
-npx drizzle-kit push       # Push schema directly to DB (dev)
-npx drizzle-kit migrate    # Run migrations
-npx drizzle-kit studio     # Open Drizzle Studio (visual DB browser)
+npm run preview    # Preview production build
+npm run typecheck  # tsc --noEmit
 ```
 
 ---
@@ -197,34 +165,27 @@ npx drizzle-kit studio     # Open Drizzle Studio (visual DB browser)
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
 | `POST` | `/api/auth/register` | ❌ | Create account |
-| `POST` | `/api/auth/login` | ❌ | Sign in |
-| `POST` | `/api/auth/logout` | ✅ | Sign out |
-| `GET` | `/api/dashboard` | ✅ | Dashboard summary |
-| `GET/POST` | `/api/tracker` | ✅ | Food log entries |
-| `GET/POST` | `/api/plans` | ✅ | Meal plans |
-| `GET/POST` | `/api/recipes` | ✅ | Recipes |
-| `GET/POST` | `/api/foods` | ✅ | Food database |
-| `GET/PUT` | `/api/profile` | ✅ | User profile |
+| `POST` | `/api/auth/login` | ❌ | Sign in (returns JWT) |
+| `POST` | `/api/auth/logout` | ✅ Bearer | Sign out |
+| `GET` | `/api/dashboard` | ✅ Bearer | Dashboard summary |
+| `GET/POST` | `/api/tracker` | ✅ Bearer | Food log entries |
+| `GET/POST` | `/api/plans` | ✅ Bearer | Meal plans |
+| `GET/POST` | `/api/recipes` | ✅ Bearer | Recipes |
+| `GET/POST` | `/api/foods` | ✅ Bearer | Food database |
+| `GET/PUT` | `/api/profile` | ✅ Bearer | User profile |
 | `GET` | `/api/health` | ❌ | Health check |
 
-See [📖 API Reference](./docs/API.md) for full request/response schemas.
+Send tokens as: `Authorization: Bearer <token>`
 
 ---
 
 ## 🚢 Deployment
 
-The project is configured for **Vercel** monorepo deployment via [`vercel.json`](./vercel.json):
-
-- Frontend → Vite static build
-- Backend → Serverless function via `backend/api/index.ts`
-- All `/api/*` traffic is routed to the backend service
+Configured for **Vercel** via [`vercel.json`](./vercel.json). Set `DATABASE_URL` and `JWT_SECRET` in the Vercel project environment (never commit them).
 
 ```bash
-# Deploy with Vercel CLI
 npx vercel --prod
 ```
-
-See [📖 Deployment Guide](./docs/DEPLOYMENT.md) for full instructions.
 
 ---
 
@@ -232,33 +193,27 @@ See [📖 Deployment Guide](./docs/DEPLOYMENT.md) for full instructions.
 
 | Document | Description |
 |---|---|
-| [SETUP.md](./docs/SETUP.md) | Detailed local dev setup & troubleshooting |
-| [API.md](./docs/API.md) | Full REST API reference |
-| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System design & data models |
-| [DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Deployment to Vercel & other platforms |
+| [SETUP.md](./docs/SETUP.md) | Local dev setup |
+| [API.md](./docs/API.md) | REST API reference |
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System design |
+| [DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Deployment |
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](./CONTRIBUTING.md) and follow the [Code of Conduct](./CODE_OF_CONDUCT.md).
-
-1. Fork the repo
-2. Create a feature branch: `git checkout -b feat/your-feature`
-3. Commit changes: `git commit -m "feat: add your feature"`
-4. Push: `git push origin feat/your-feature`
-5. Open a Pull Request
+See [CONTRIBUTING.md](./CONTRIBUTING.md) and [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License** — see [LICENSE](./LICENSE) for details.
+MIT — see [LICENSE](./LICENSE).
 
 ---
 
 <div align="center">
 
-Built with ❤️ by [Mostafa SAID](https://github.com/Mostafa-SAID7)
+Repo: [Confidential-solutions/Tayebat-Full](https://github.com/Confidential-solutions/Tayebat-Full)
 
 </div>

@@ -1,7 +1,7 @@
 {
-  "name": "expert-review-hub-frontend",
+  "name": "tayebat-frontend",
   "version": "1.0.0",
-  "description": "Expert Review Hub - Frontend Web Application",
+  "description": "Tayebat (Eltayebat) - Frontend Web Application",
   "private": true,
   "type": "module",
   "scripts": {

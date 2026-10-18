@@ -2,9 +2,17 @@
 
 # ─── Environment files (never commit secrets) ─────────────────────────────────
 .env
+.env.*
+!.env.example
+!**/.env.example
 .env.local
 .env.*.local
 *.env
+!*.env.example
+
+# Explicit backend/frontend env paths
+backend/.env
+frontend/.env
 
 # ─── Compiled output ──────────────────────────────────────────────────────────
 dist/
@@ -46,7 +54,6 @@ drizzle/
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
-!.vscode/extensions.json
 !.vscode/extensions.json
 
 # ─── Misc ─────────────────────────────────────────────────────────────────────

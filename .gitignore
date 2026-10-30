@@ -5,6 +5,10 @@
 .env.local
 .env.*.local
 *.env
+!.env.example
+!**/.env.example
+backend/.env
+frontend/.env
 
 # ─── Compiled output ──────────────────────────────────────────────────────────
 dist/
@@ -31,6 +35,8 @@ drizzle/
 
 # ─── Coverage ─────────────────────────────────────────────────────────────────
 /coverage/
+backend/coverage/
+frontend/coverage/
 
 # ─── IDEs and editors ─────────────────────────────────────────────────────────
 /.idea/
@@ -46,7 +52,6 @@ drizzle/
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
-!.vscode/extensions.json
 !.vscode/extensions.json
 
 # ─── Misc ─────────────────────────────────────────────────────────────────────

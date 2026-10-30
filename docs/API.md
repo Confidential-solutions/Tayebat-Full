@@ -1,4 +1,4 @@
-# API Reference — Expert Review Hub
+# API Reference — Tayebat (Eltayebat)
 
 Base URL (local): `http://localhost:3000`  
 All protected routes require an `Authorization: Bearer <token>` header.

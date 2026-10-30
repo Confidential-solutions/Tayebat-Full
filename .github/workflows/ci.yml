@@ -20,7 +20,8 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      - run: npm ci
+      # Use install (not ci) until package-lock is fully regenerated with vitest
+      - run: npm install --legacy-peer-deps
       - run: npm run typecheck
       - run: npm test
         env:

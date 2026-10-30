@@ -1,113 +1,105 @@
 import { Router } from "express";
-import { db, trackerEntriesTable, weightLogsTable } from "../db/index.js";
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middleware/auth.js";
-import { CreateTrackerEntrySchema as CreateTrackerEntryBody, UpdateTrackerEntrySchema as UpdateTrackerEntryBody, CreateWeightLogSchema as CreateWeightLogBody } from "../validators/schemas.js";
+import {
+  CreateTrackerEntrySchema as CreateTrackerEntryBody,
+  UpdateTrackerEntrySchema as UpdateTrackerEntryBody,
+  CreateWeightLogSchema as CreateWeightLogBody,
+} from "../validators/schemas.js";
+import {
+  trackerService,
+  TrackerServiceError,
+} from "../services/tracker.service.js";
 
 const router = Router();
-
 router.use(requireAuth);
 
+function handleTrackerError(err: unknown, res: import("express").Response) {
+  if (err instanceof TrackerServiceError) {
+    return res.status(err.statusCode).json({ error: err.message });
+  }
+  console.error("tracker error:", err);
+  return res.status(500).json({ error: "Server error" });
+}
+
 router.get("/tracker/entries", async (req: AuthRequest, res) => {
-  const { startDate, endDate } = req.query as Record<string, string>;
-  const userId = req.userId!;
-
-  const conditions = [eq(trackerEntriesTable.userId, userId)];
-  if (startDate) conditions.push(gte(trackerEntriesTable.date, startDate));
-  if (endDate) conditions.push(lte(trackerEntriesTable.date, endDate));
-
-  const entries = await db.select().from(trackerEntriesTable).where(and(...conditions)).orderBy(desc(trackerEntriesTable.createdAt));
-  return res.json(entries);
+  try {
+    const { startDate, endDate } = req.query as Record<string, string>;
+    const entries = await trackerService.listEntries(req.userId!, {
+      startDate,
+      endDate,
+    });
+    return res.json(entries);
+  } catch (err) {
+    return handleTrackerError(err, res);
+  }
 });
 
 router.post("/tracker/entries", async (req: AuthRequest, res) => {
-  const parsed = CreateTrackerEntryBody.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
-
-  const [entry] = await db.insert(trackerEntriesTable).values({ ...parsed.data, userId: req.userId! }).returning();
-  return res.status(201).json(entry);
+  try {
+    const parsed = CreateTrackerEntryBody.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+    const entry = await trackerService.createEntry(req.userId!, parsed.data);
+    return res.status(201).json(entry);
+  } catch (err) {
+    return handleTrackerError(err, res);
+  }
 });
 
 router.patch("/tracker/entries/:id", async (req: AuthRequest, res) => {
-  const idStr = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(idStr);
-  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
-
-  const parsed = UpdateTrackerEntryBody.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
-
-  const [entry] = await db.update(trackerEntriesTable)
-    .set(parsed.data)
-    .where(and(eq(trackerEntriesTable.id, id), eq(trackerEntriesTable.userId, req.userId!)))
-    .returning();
-
-  if (!entry) return res.status(404).json({ error: "Entry not found" });
-  return res.json(entry);
+  try {
+    const idStr = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(idStr, 10);
+    const parsed = UpdateTrackerEntryBody.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+    const entry = await trackerService.updateEntry(req.userId!, id, parsed.data);
+    return res.json(entry);
+  } catch (err) {
+    return handleTrackerError(err, res);
+  }
 });
 
 router.delete("/tracker/entries/:id", async (req: AuthRequest, res) => {
-  const idStr = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(idStr);
-  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
-
-  await db.delete(trackerEntriesTable)
-    .where(and(eq(trackerEntriesTable.id, id), eq(trackerEntriesTable.userId, req.userId!)));
-  return res.status(204).send();
+  try {
+    const idStr = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(idStr, 10);
+    await trackerService.deleteEntry(req.userId!, id);
+    return res.status(204).send();
+  } catch (err) {
+    return handleTrackerError(err, res);
+  }
 });
 
 router.get("/tracker/today", async (req: AuthRequest, res) => {
-  const userId = req.userId!;
-  const today = new Date().toISOString().split("T")[0];
-
-  const entries = await db.select().from(trackerEntriesTable)
-    .where(and(eq(trackerEntriesTable.userId, userId), eq(trackerEntriesTable.date, today)));
-
-  const meals = entries.filter(e => e.type === "meal");
-  const tayyibCount = meals.filter(e => e.foodStatus === "tayyib").length;
-  const khabeethCount = meals.filter(e => e.foodStatus === "khabeeth").length;
-  const waterEntries = entries.filter(e => e.type === "water");
-  const waterMl = waterEntries.reduce((sum, e) => sum + (e.waterMl ?? 0), 0);
-  const fastingEntries = entries.filter(e => e.type === "fasting");
-  const fastingHours = fastingEntries.reduce((sum, e) => sum + (e.fastingHours ?? 0), 0);
-  const hungerValues = meals.map(e => e.hungerLevel).filter(Boolean) as number[];
-  const energyValues = meals.map(e => e.energyLevel).filter(Boolean) as number[];
-  const avgHunger = hungerValues.length ? hungerValues.reduce((a, b) => a + b, 0) / hungerValues.length : 0;
-  const avgEnergy = energyValues.length ? energyValues.reduce((a, b) => a + b, 0) / energyValues.length : 0;
-  const adherence = meals.length > 0 ? Math.round((tayyibCount / meals.length) * 100) : 0;
-
-  return res.json({
-    date: today,
-    mealCount: meals.length,
-    tayyibCount,
-    khabeethCount,
-    waterMl,
-    fastingHours,
-    averageHunger: Math.round(avgHunger * 10) / 10,
-    averageEnergy: Math.round(avgEnergy * 10) / 10,
-    adherenceScore: adherence,
-  });
+  try {
+    const summary = await trackerService.todaySummary(req.userId!);
+    return res.json(summary);
+  } catch (err) {
+    return handleTrackerError(err, res);
+  }
 });
 
 router.get("/tracker/weight", async (req: AuthRequest, res) => {
-  const { days = "30" } = req.query as Record<string, string>;
-  const daysNum = parseInt(days);
-  const since = new Date();
-  since.setDate(since.getDate() - daysNum);
-  const sinceStr = since.toISOString().split("T")[0];
-
-  const logs = await db.select().from(weightLogsTable)
-    .where(and(eq(weightLogsTable.userId, req.userId!), gte(weightLogsTable.date, sinceStr)))
-    .orderBy(weightLogsTable.date);
-
-  return res.json(logs);
+  try {
+    const { days = "30" } = req.query as Record<string, string>;
+    const logs = await trackerService.listWeight(
+      req.userId!,
+      parseInt(days, 10)
+    );
+    return res.json(logs);
+  } catch (err) {
+    return handleTrackerError(err, res);
+  }
 });
 
 router.post("/tracker/weight", async (req: AuthRequest, res) => {
-  const parsed = CreateWeightLogBody.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
-
-  const [log] = await db.insert(weightLogsTable).values({ ...parsed.data, userId: req.userId! }).returning();
-  return res.status(201).json(log);
+  try {
+    const parsed = CreateWeightLogBody.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+    const log = await trackerService.createWeight(req.userId!, parsed.data);
+    return res.status(201).json(log);
+  } catch (err) {
+    return handleTrackerError(err, res);
+  }
 });
 
 export default router;

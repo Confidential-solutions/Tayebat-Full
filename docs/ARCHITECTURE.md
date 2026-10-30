@@ -24,32 +24,36 @@ Monorepo: independently deployable `frontend/` and `backend/`, coordinated via r
 
 ## Backend Architecture
 
-### Target layer structure
+### Layer structure
 
 ```
-Request → Route → Middleware → Controller → Service → Repository → DB
-                                         ↑
-                                     Zod Validator
+Request → Route → Middleware → Service → DB (Drizzle)
+                       ↑
+                   Zod Validator
 ```
 
 | Layer | Folder | Responsibility |
 |---|---|---|
-| **Routes** | `src/routes/` | URL mapping; keep thin |
+| **Routes** | `src/routes/` | URL mapping, Zod validation, HTTP status mapping — keep thin |
 | **Middleware** | `src/middleware/` | Auth guard, error handler |
-| **Controllers** | `src/controllers/` | req/res only |
-| **Services** | `src/services/` | Business logic |
+| **Controllers** | `src/controllers/` | Optional thin handlers (e.g. health) |
+| **Services** | `src/services/` | Domain business logic |
 | **DB / Schema** | `src/db/schema/` | Drizzle tables |
 | **Validators** | `src/validators/` | Zod request bodies |
 | **Config** | `src/config/` | Zod-validated env (fail fast) |
 
-### Current state (honest)
+### Domain services (current)
 
-- `src/services/` currently has **base + repository** helpers only.
-- Most domain logic still lives in **route modules** (`auth`, `tracker`, `foods`, `plans`, …).
-- Controllers folder is minimal (e.g. health).
-- **Planned work (#7):** extract auth / tracker / foods / plans into service modules; leave Zod at the route boundary; thin routes calling services.
+| Service | File | Covers |
+|---|---|---|
+| **AuthService** | `auth.service.ts` | register, login, me |
+| **FoodsService** | `foods.service.ts` | list, categories, getById |
+| **TrackerService** | `tracker.service.ts` | entries CRUD, today summary, weight |
+| **PlansService** | `plans.service.ts` | meal plans CRUD with entries |
 
-Until that lands, treat routes as the de-facto application layer and avoid duplicating logic when adding endpoints.
+Routes call these services; they no longer embed DB/auth business rules.
+
+Still fat / not fully extracted: `dashboard`, `profile`, `recipes` (follow-up).
 
 ### Key decisions
 
